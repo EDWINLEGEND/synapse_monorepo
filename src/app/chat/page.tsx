@@ -109,8 +109,8 @@ export default function Chat() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col pb-24">
-      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col max-w-4xl">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -124,12 +124,13 @@ export default function Chat() {
         </motion.div>
 
         {/* Messages Area */}
-        <div className="flex-1 space-y-4 mb-6 min-h-[400px] max-h-[600px] overflow-y-auto">
+        <div className="flex-1 space-y-6 mb-8 min-h-[500px] max-h-[70vh] overflow-y-auto bg-muted/20 rounded-lg p-6 border">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground">
-                <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Start a conversation by asking a question!</p>
+                <Bot className="h-16 w-16 mx-auto mb-6 opacity-50" />
+                <p className="text-lg">Start a conversation by asking a question!</p>
+                <p className="text-sm mt-2 opacity-75">I can help you find information from your uploaded documents</p>
               </div>
             </div>
           ) : (
@@ -142,7 +143,7 @@ export default function Chat() {
                   transition={{ duration: 0.3 }}
                   className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex gap-3 max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`flex gap-2 max-w-[70%] ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                     <div className="flex-shrink-0">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                         message.type === 'user' 
@@ -158,9 +159,9 @@ export default function Chat() {
                     </div>
                     
                     <div className="space-y-2">
-                      <Card className={message.type === 'user' ? 'bg-primary text-primary-foreground' : ''}>
-                        <CardContent className="p-4">
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                      <Card className={`${message.type === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card'} shadow-sm`}>
+                        <CardContent className="p-3">
+                          <p className="whitespace-pre-wrap text-sm leading-normal">{message.content}</p>
                         </CardContent>
                       </Card>
                       
@@ -232,16 +233,16 @@ export default function Chat() {
               animate={{ opacity: 1, y: 0 }}
               className="flex gap-3 justify-start"
             >
-              <div className="flex gap-3 max-w-[80%]">
+              <div className="flex gap-2 max-w-[70%]">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
                     <Bot className="h-4 w-4" />
                   </div>
                 </div>
-                <Card>
-                  <CardContent className="p-4">
+                <Card className="bg-card shadow-sm">
+                  <CardContent className="p-3">
                     <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       <span className="text-sm text-muted-foreground">Thinking...</span>
                     </div>
                   </CardContent>
@@ -254,24 +255,37 @@ export default function Chat() {
         </div>
 
         {/* Input Area */}
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about your knowledge base..."
-            disabled={isQuerying}
-            className="flex-1"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSubmit(e)
-              }
-            }}
-          />
-          <Button type="submit" disabled={isQuerying || !input.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+        <div className="bg-card rounded-lg border p-4 shadow-sm">
+          <form onSubmit={handleSubmit} className="flex gap-3">
+            <div className="flex-1 relative">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask a question about your knowledge base..."
+                disabled={isQuerying}
+                className="flex-1 text-base py-3 px-4 pr-12 min-h-[48px] resize-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit(e)
+                  }
+                }}
+              />
+            </div>
+            <Button 
+              type="submit" 
+              disabled={isQuerying || !input.trim()}
+              size="lg"
+              className="px-6 py-3 min-h-[48px]"
+            >
+              {isQuerying ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </Button>
+          </form>
+        </div>
       </main>
     </div>
   )

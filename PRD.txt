@@ -1,0 +1,185 @@
+Synapse - Unified Knowledge Engine
+Product Requirements Document (PRD)
+1. Executive Summary
+Product Name: Synapse
+Version: 1.0.0
+Product Type: Full-Stack Knowledge Management Platform
+Target Audience: Development teams, organizations, knowledge workers
+
+Synapse is a unified knowledge engine that combines document management, team communication integration, and intelligent querying capabilities. It leverages RAG (Retrieval-Augmented Generation) technology to provide contextual answers from multiple data sources including documents, Slack conversations, and GitHub repositories.
+
+2. Product Vision & Goals
+Vision Statement
+To create a minimal, powerful knowledge engine that connects documents, conversations, and code in one intelligent interface, enabling teams to access organizational knowledge instantly.
+
+Primary Goals
+Centralize Knowledge: Aggregate information from multiple sources into a single searchable interface
+Intelligent Retrieval: Provide contextual, AI-powered answers with source citations
+Seamless Integration: Connect with existing tools (Slack, GitHub) without workflow disruption
+Developer-Friendly: Offer a modern, responsive interface with robust API capabilities
+3. Target Users & Use Cases
+Primary Users
+1.
+Development Teams - Access codebase documentation and project discussions
+2.
+Knowledge Workers - Query organizational documents and team conversations
+3.
+Project Managers - Analyze GitHub activity and team communications
+4.
+Support Teams - Find answers from documentation and historical conversations
+Key Use Cases
+1.
+Knowledge Management: Centralize organizational knowledge from multiple sources
+2.
+Developer Support: Query codebase documentation and GitHub discussions
+3.
+Team Collaboration: Search across Slack conversations and project history
+4.
+Project Insights: Analyze GitHub activity, issues, and pull requests
+4. Technical Architecture
+Frontend Stack
+Framework: Next.js 15 with React 19
+Styling: Tailwind CSS with shadcn/ui components
+State Management: Zustand
+Animations: Framer Motion
+Theme Support: Dark/Light mode with next-themes
+Development: TypeScript, ESLint
+Backend Stack
+Framework: FastAPI (Python)
+LLM Integration: OpenAI GPT-4o-mini
+Embeddings: OpenAI text-embedding-3-small
+Vector Search: Cosine similarity with NumPy
+File Processing: Python multipart, tiktoken
+Server: Uvicorn with hot reload
+Infrastructure
+Development Ports: Frontend (3001), Backend (8000)
+Storage: Local file system with in-memory document indexing
+CORS: Configured for local development
+Environment: Docker-ready with environment variable configuration
+5. Core Features
+5.1 Document Management
+File Upload: Support for .txt and .md files
+Processing: Automatic text extraction and chunking
+Indexing: Vector embedding generation for semantic search
+Storage: Organized file system with metadata tracking
+5.2 Intelligent Querying
+Natural Language Interface: Chat-based query system
+RAG Implementation: Context-aware responses using retrieved documents
+Source Citations: Automatic source attribution with metadata
+Semantic Search: Vector-based similarity matching (top-k retrieval)
+5.3 Integration Capabilities
+Slack Integration:
+Channel message synchronization
+Token-based authentication
+Message history import
+GitHub Integration:
+Repository content sync
+Pull request and issue import
+Token-based API access
+5.4 User Interface
+Chat Interface: Modern conversational UI with message bubbles
+Control Panel: Administrative interface for data management
+Responsive Design: Mobile-friendly layout
+Theme Support: Dark/light mode toggle
+Real-time Feedback: Loading states and progress indicators
+6. API Specifications
+Core Endpoints
+PlainText
+
+
+
+GET  /                    # Health checkPOST /api/upload          # Document upload (.txt, .md)POST /api/query           # Knowledge base queryingPOST /api/sync/slack      # Slack channel synchronizationPOST /api/sync/github     # GitHub repository synchronization
+Request/Response Models
+QueryRequest: { question: string }
+QueryResponse: { answer: string, sources: Source[] }
+Source: { id: string, content: string, metadata: object }
+Upload: Multipart form data with file attachment
+7. User Experience Flow
+7.1 Onboarding
+1.
+User accesses landing page with product overview
+2.
+Navigation to chat interface or control panel
+3.
+Optional integration setup (Slack/GitHub tokens)
+7.2 Content Ingestion
+1.
+Document Upload: Drag-and-drop or file selection
+2.
+Slack Sync: Channel ID input with optional token
+3.
+GitHub Sync: Repository details with authentication
+4.
+Processing Feedback: Progress indicators and success notifications
+7.3 Knowledge Querying
+1.
+Question Input: Natural language query in chat interface
+2.
+Processing: Real-time "thinking" indicator
+3.
+Response Display: AI-generated answer with source cards
+4.
+Source Exploration: Expandable source content with metadata
+8. Technical Requirements
+8.1 Performance
+Response Time: < 3 seconds for typical queries
+File Processing: Support for documents up to 10MB
+Concurrent Users: Designed for small to medium teams (10-100 users)
+Memory Usage: Efficient in-memory document storage
+8.2 Security
+API Keys: Secure environment variable storage
+CORS: Configured for specific origins
+Input Validation: Pydantic models for request validation
+Error Handling: Comprehensive error responses
+8.3 Scalability
+Modular Architecture: Separate frontend/backend deployment
+Environment Configuration: Production-ready settings
+Database Ready: Extensible to persistent storage solutions
+API Documentation: Auto-generated with FastAPI
+9. Dependencies & Prerequisites
+Runtime Requirements
+Node.js: v18 or higher
+Python: v3.9 or higher
+Package Managers: npm/yarn/pnpm
+External Services
+OpenAI API: Required for LLM and embeddings
+Slack API: Optional for Slack integration
+GitHub API: Optional for GitHub integration
+Development Tools
+TypeScript: Type safety and development experience
+ESLint: Code quality and consistency
+Tailwind CSS: Utility-first styling
+FastAPI Docs: Interactive API documentation
+10. Success Metrics
+User Engagement
+Query response accuracy and relevance
+User session duration and return rate
+Feature adoption (upload, sync, query)
+Technical Performance
+API response times and error rates
+Document processing success rate
+Integration sync reliability
+Business Value
+Knowledge discovery efficiency
+Team collaboration improvement
+Reduced time-to-information
+11. Future Roadmap
+Phase 2 Enhancements
+Advanced Search: Filters, date ranges, source types
+User Management: Authentication and authorization
+Analytics Dashboard: Usage metrics and insights
+Additional Integrations: Notion, Confluence, Teams
+Phase 3 Scaling
+Enterprise Features: SSO, audit logs, compliance
+Performance Optimization: Caching, database integration
+Advanced AI: Custom models, fine-tuning capabilities
+Mobile Applications: Native iOS/Android apps
+12. Risk Assessment
+Technical Risks
+API Rate Limits: OpenAI usage costs and limitations
+Memory Constraints: In-memory storage scalability
+Integration Reliability: Third-party API dependencies
+Mitigation Strategies
+Cost Management: Usage monitoring and optimization
+Storage Solutions: Migration to persistent databases
+Fallback Mechanisms: Graceful degradation for failed integrations
