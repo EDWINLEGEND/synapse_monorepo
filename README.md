@@ -1,36 +1,181 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Synapse - Unified Knowledge Engine
 
-## Getting Started
+Synapse is a full-stack application that combines a Next.js frontend with a FastAPI backend to create a unified knowledge engine. The system supports document upload, Slack/GitHub integration, and intelligent querying using RAG (Retrieval-Augmented Generation) with OpenAI.
 
-First, run the development server:
+## Project Structure
+
+```
+Synapse-v2/
+├── backend/          # FastAPI backend server
+├── src/             # Next.js frontend application
+├── public/          # Static assets
+└── components.json  # UI component configuration
+```
+
+## Prerequisites
+
+- **Node.js** (v18 or higher)
+- **Python** (v3.9 or higher)
+- **npm** or **yarn** or **pnpm**
+- **OpenAI API Key** (or compatible API endpoint)
+
+## Environment Setup
+
+### Backend Configuration
+
+1. Navigate to the backend directory:
+```bash
+cd backend
+```
+
+2. Create a `.env` file with the following variables:
+```env
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Slack Integration (optional)
+SLACK_BOT_TOKEN=your_slack_bot_token_here
+
+# GitHub Integration (optional)
+GITHUB_TOKEN=your_github_token_here
+```
+
+**Note**: You can use custom OpenAI-compatible endpoints by updating the `OPENAI_BASE_URL` variable.
+
+### Frontend Configuration
+
+The frontend uses environment variables for API communication. Create a `.env.local` file in the root directory if needed:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+## Installation & Setup
+
+### 1. Install Backend Dependencies
 
 ```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### 2. Install Frontend Dependencies
+
+```bash
+# From the root directory
+npm install
+# or
+yarn install
+# or
+pnpm install
+```
+
+## Running the Application
+
+### Start the Backend Server
+
+```bash
+cd backend
+python run.py
+```
+
+The backend API will be available at: `http://localhost:8000`
+- API Documentation: `http://localhost:8000/docs`
+- Health Check: `http://localhost:8000/`
+
+### Start the Frontend Development Server
+
+```bash
+# From the root directory
 npm run dev
 # or
 yarn dev
 # or
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The frontend will be available at: `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 🔍 **Knowledge Querying**
+- Upload documents and query them using natural language
+- Semantic search with OpenAI embeddings
+- RAG-powered responses with source citations
+
+### 🔗 **Data Integration**
+- **Slack**: Sync messages from specified channels
+- **GitHub**: Import repository content and documentation
+- **File Upload**: Support for text documents
+
+### 🎨 **Modern UI**
+- Built with Next.js 15 and React 19
+- Tailwind CSS for styling
+- Dark/Light theme support
+- Responsive design
+
+## API Endpoints
+
+### Core Endpoints
+- `GET /` - Health check
+- `POST /api/upload` - Upload and process documents
+- `POST /api/query` - Query the knowledge base
+- `POST /api/sync/slack` - Sync Slack channels
+- `POST /api/sync/github` - Sync GitHub repositories
+
+### Documentation
+Visit `http://localhost:8000/docs` for interactive API documentation.
+
+## Development
+
+### Frontend Development
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
+```
+
+### Backend Development
+```bash
+cd backend
+python run.py        # Start development server with hot reload
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Backend fails to start**: Ensure all environment variables are set in `.env`
+2. **OpenAI API errors**: Verify your API key and base URL configuration
+3. **Frontend can't connect**: Check that the backend is running on port 8000
+4. **Dependency issues**: Try deleting `node_modules` and reinstalling
+
+### Python Dependencies
+If you encounter issues with Python dependencies, try:
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt --force-reinstall
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test both frontend and backend
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+### Next.js Resources
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### FastAPI Resources
+- [FastAPI Documentation](https://fastapi.tiangolo.com/) - comprehensive FastAPI guide
+- [OpenAI API Documentation](https://platform.openai.com/docs) - OpenAI API reference

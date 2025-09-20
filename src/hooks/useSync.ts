@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { API_ENDPOINTS } from '../lib/api'
 
 interface SyncResponse {
   success: boolean
@@ -37,12 +38,15 @@ export const useSync = () => {
     setSyncProgress(0)
 
     try {
-      const response = await fetch('/api/sync/slack', {
+      const formData = new FormData()
+      formData.append('channel_ids', params.channelIds.join(','))
+      if (params.token) {
+        formData.append('token', params.token)
+      }
+
+      const response = await fetch(API_ENDPOINTS.SYNC_SLACK, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(params),
+        body: formData,
       })
 
       if (!response.ok) {
@@ -87,16 +91,16 @@ export const useSync = () => {
     setSyncProgress(0)
 
     try {
-      const response = await fetch('/api/sync/github', {
+      const formData = new FormData()
+      formData.append('owner', params.owner)
+      formData.append('repo', params.repo)
+      if (params.token) {
+        formData.append('token', params.token)
+      }
+
+      const response = await fetch(API_ENDPOINTS.SYNC_GITHUB, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...params,
-          includePRs: params.includePRs ?? true,
-          includeIssues: params.includeIssues ?? true
-        }),
+        body: formData,
       })
 
       if (!response.ok) {
@@ -134,7 +138,7 @@ export const useSync = () => {
     if (!isSyncing) return true
 
     try {
-      const response = await fetch('/api/sync/cancel', {
+      const response = await fetch(API_ENDPOINTS.SYNC_CANCEL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

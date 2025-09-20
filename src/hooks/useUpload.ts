@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { API_ENDPOINTS } from '../lib/api'
 
 interface UploadResponse {
   success: boolean
@@ -19,7 +20,7 @@ export const useUpload = () => {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
         body: formData,
       })

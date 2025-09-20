@@ -194,15 +194,15 @@ export default function Chat() {
                                   <Card key={source.id} className="bg-muted/50">
                                     <CardContent className="p-3">
                                       <div className="flex items-start gap-2 mb-2">
-                                        {getSourceIcon(source.metadata.type)}
+                                        {getSourceIcon(source.metadata?.type || 'document')}
                                         <div className="text-xs text-muted-foreground">
-                                          {source.metadata.filename && (
+                                          {source.metadata?.filename && (
                                             <span>File: {source.metadata.filename}</span>
                                           )}
-                                          {source.metadata.channel && (
+                                          {source.metadata?.channel && (
                                             <span>Channel: {source.metadata.channel}</span>
                                           )}
-                                          {source.metadata.pr && (
+                                          {source.metadata?.pr && (
                                             <span>PR: {source.metadata.pr}</span>
                                           )}
                                         </div>

@@ -12,6 +12,7 @@ import openai
 from openai import OpenAI
 import tiktoken
 import numpy as np
+import time
 
 # Initialize FastAPI app
 app = FastAPI(title="Synapse API", description="Unified Knowledge Engine", version="1.0.0")
@@ -240,15 +241,39 @@ async def query_knowledge(request: QueryRequest):
         
         answer = response.choices[0].message.content
         
-        # Prepare sources
-        sources = [
-            {
+        # Prepare sources with proper metadata structure
+        sources = []
+        for i, doc in enumerate(relevant_docs[:3]):
+            source_text = doc['source']
+            
+            # Determine source type and metadata based on source text
+            if "Slack" in source_text:
+                source_type = "slack"
+                metadata = {
+                    "type": "slack",
+                    "channel": source_text.split("channels: ")[1].split(" (")[0] if "channels: " in source_text else "Unknown"
+                }
+            elif "GitHub" in source_text:
+                source_type = "github"
+                repo_info = source_text.split("GitHub: ")[1].split(" (")[0] if "GitHub: " in source_text else "Unknown"
+                metadata = {
+                    "type": "github",
+                    "pr": repo_info
+                }
+            else:
+                source_type = "document"
+                filename = source_text.split(" (chunk")[0] if " (chunk" in source_text else source_text
+                metadata = {
+                    "type": "document",
+                    "filename": filename
+                }
+            
+            sources.append({
+                "id": f"source_{i}_{int(time.time() * 1000)}",
                 "content": doc['content'][:200] + "..." if len(doc['content']) > 200 else doc['content'],
-                "source": doc['source'],
-                "similarity": doc['similarity']
-            }
-            for doc in relevant_docs[:3]
-        ]
+                "metadata": metadata
+            })
+        
         
         return QueryResponse(answer=answer, sources=sources)
         

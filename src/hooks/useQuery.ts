@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { API_ENDPOINTS } from '../lib/api'
 
 interface Source {
   id: string
@@ -38,7 +39,7 @@ export const useQuery = () => {
     setError(null)
 
     try {
-      const response = await fetch('/api/query', {
+      const response = await fetch(API_ENDPOINTS.QUERY, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
