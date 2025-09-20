@@ -1,0 +1,24 @@
+Synapse Knowledge Base Test Document
+
+This is a test document for the Synapse unified knowledge engine. 
+
+Key Features:
+- Document ingestion from .txt and .md files
+- Slack channel synchronization for team conversations
+- GitHub repository integration for issues and pull requests
+- Natural language querying with source citations
+- Vector-based semantic search using LlamaIndex
+
+Technical Stack:
+- Backend: Python FastAPI with LlamaIndex
+- Frontend: React with Next.js
+- LLM: OpenAI GPT-4o-mini
+- Embeddings: OpenAI text-embedding-3-small
+
+Use Cases:
+1. Knowledge Management: Centralize organizational knowledge
+2. Developer Support: Query codebase and documentation
+3. Team Collaboration: Search across Slack conversations
+4. Project Insights: Analyze GitHub activity and discussions
+
+This document serves as a test case for the document upload and indexing functionality.
