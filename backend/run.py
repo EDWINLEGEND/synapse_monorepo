@@ -30,16 +30,13 @@ if missing_vars:
     print("   Please set these in your .env file")
     sys.exit(1)
 
-# Import the FastAPI app
-from main import app
-
 if __name__ == "__main__":
     print("🚀 Starting Synapse Backend Server...")
     print("📖 API Documentation: http://127.0.0.1:8000/docs")
     print("🔍 Health Check: http://127.0.0.1:8000/")
     
     uvicorn.run(
-        app,
+        "main:app",  # Use import string instead of importing the app directly
         host="127.0.0.1",
         port=8000,
         reload=True,
