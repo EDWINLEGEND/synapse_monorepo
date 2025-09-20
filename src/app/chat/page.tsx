@@ -191,7 +191,7 @@ export default function Chat() {
                                 transition={{ duration: 0.2 }}
                                 className="space-y-2"
                               >
-                                {message.sources.map((source, index) => (
+                                {message.sources.map((source) => (
                                   <Card key={source.id} className="bg-muted/50">
                                     <CardContent className="p-3">
                                       <div className="flex items-start gap-2 mb-2">

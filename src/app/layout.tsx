@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProviderWrapper } from "@/components/theme-provider-wrapper";
 import { Navbar } from "@/components/navbar";
+import { FloatingNavbar } from "@/components/floating-navbar";
 import { inter, oswald } from "@/lib/fonts";
 import { Toaster } from "@/components/ui/sonner";
+import ErrorBoundary from "@/components/error-boundary";
 
 export const metadata: Metadata = {
   title: "Synapse - Knowledge Engine",
@@ -24,8 +26,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
           <Navbar />
+          <FloatingNavbar />
           <Toaster />
         </ThemeProviderWrapper>
       </body>

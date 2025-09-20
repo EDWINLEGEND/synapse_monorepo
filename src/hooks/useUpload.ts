@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { API_ENDPOINTS } from '../lib/api'
+import { useProjectStore } from '../store/project-store'
 
 interface UploadResponse {
   success: boolean
@@ -11,6 +12,7 @@ interface UploadResponse {
 export const useUpload = () => {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const { activeContextId } = useProjectStore()
 
   const uploadDocument = async (file: File): Promise<UploadResponse> => {
     setIsUploading(true)
@@ -19,6 +21,7 @@ export const useUpload = () => {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('contextId', activeContextId)
 
       const response = await fetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',

@@ -107,6 +107,7 @@ def search_documents(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
 # Pydantic models
 class QueryRequest(BaseModel):
     question: str
+    contextId: str | None = None
 
 class QueryResponse(BaseModel):
     answer: str
@@ -124,7 +125,7 @@ async def root():
     return {"message": "Synapse API is running", "version": "1.0.0"}
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...), contextId: str = Form(None)):
     """Upload and process a document."""
     try:
         # Save uploaded file
@@ -145,10 +146,11 @@ async def upload_document(file: UploadFile = File(...)):
             documents.append({
                 'content': chunk,
                 'source': f"{file.filename} (chunk {i+1})",
-                'embedding': embedding
+                'embedding': embedding,
+                'contextId': contextId  # Store the contextId with the document
             })
         
-        logger.info(f"Processed {len(chunks)} chunks from {file.filename}")
+        logger.info(f"Processed {len(chunks)} chunks from {file.filename} for context: {contextId}")
         return UploadResponse(message=f"Successfully uploaded and processed {file.filename}")
         
     except Exception as e:
@@ -156,12 +158,12 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/sync/slack", response_model=SyncResponse)
-async def sync_slack(channel_ids: str = Form(...)):
+async def sync_slack(channel_ids: str = Form(...), contextId: str = Form(None)):
     """Sync data from Slack channels (simplified implementation)."""
     try:
         # This is a simplified implementation
         # In a real scenario, you would use the Slack API to fetch messages
-        logger.info(f"Slack sync requested for channels: {channel_ids}")
+        logger.info(f"Slack sync requested for channels: {channel_ids} with context: {contextId}")
         
         # Mock data for demonstration
         mock_content = f"Mock Slack data from channels: {channel_ids}"
@@ -172,7 +174,8 @@ async def sync_slack(channel_ids: str = Form(...)):
             documents.append({
                 'content': chunk,
                 'source': f"Slack channels: {channel_ids} (chunk {i+1})",
-                'embedding': embedding
+                'embedding': embedding,
+                'contextId': contextId  # Store the contextId with the document
             })
         
         return SyncResponse(message=f"Successfully synced Slack channels: {channel_ids}")
@@ -182,12 +185,12 @@ async def sync_slack(channel_ids: str = Form(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/sync/github", response_model=SyncResponse)
-async def sync_github(owner: str = Form(...), repo: str = Form(...)):
+async def sync_github(owner: str = Form(...), repo: str = Form(...), contextId: str = Form(None)):
     """Sync data from GitHub repository (simplified implementation)."""
     try:
         # This is a simplified implementation
         # In a real scenario, you would use the GitHub API to fetch repository content
-        logger.info(f"GitHub sync requested for {owner}/{repo}")
+        logger.info(f"GitHub sync requested for {owner}/{repo} with context: {contextId}")
         
         # Mock data for demonstration
         mock_content = f"Mock GitHub repository data from {owner}/{repo}"
@@ -198,13 +201,27 @@ async def sync_github(owner: str = Form(...), repo: str = Form(...)):
             documents.append({
                 'content': chunk,
                 'source': f"GitHub: {owner}/{repo} (chunk {i+1})",
-                'embedding': embedding
+                'embedding': embedding,
+                'contextId': contextId  # Store the contextId with the document
             })
         
         return SyncResponse(message=f"Successfully synced GitHub repository: {owner}/{repo}")
         
     except Exception as e:
         logger.error(f"Error syncing GitHub: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/sync/cancel", response_model=SyncResponse)
+async def cancel_sync():
+    """Cancel ongoing sync operations."""
+    try:
+        # In a real implementation, you would cancel ongoing sync operations
+        # For now, we'll just return a success message
+        logger.info("Sync cancellation requested")
+        return SyncResponse(message="Sync operations cancelled successfully")
+        
+    except Exception as e:
+        logger.error(f"Error cancelling sync: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/query", response_model=QueryResponse)

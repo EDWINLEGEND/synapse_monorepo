@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { API_ENDPOINTS } from '../lib/api'
+import { useProjectStore } from '../store/project-store'
 
 interface SyncResponse {
   success: boolean
@@ -26,6 +27,7 @@ export const useSync = () => {
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncProgress, setSyncProgress] = useState(0)
   const [syncType, setSyncType] = useState<'slack' | 'github' | null>(null)
+  const { activeContextId } = useProjectStore()
 
   const syncSlack = async (params: SlackSyncParams): Promise<SyncResponse> => {
     if (!params.channelIds.length) {
@@ -40,6 +42,7 @@ export const useSync = () => {
     try {
       const formData = new FormData()
       formData.append('channel_ids', params.channelIds.join(','))
+      formData.append('contextId', activeContextId)
       if (params.token) {
         formData.append('token', params.token)
       }
@@ -94,6 +97,7 @@ export const useSync = () => {
       const formData = new FormData()
       formData.append('owner', params.owner)
       formData.append('repo', params.repo)
+      formData.append('contextId', activeContextId)
       if (params.token) {
         formData.append('token', params.token)
       }
@@ -154,7 +158,7 @@ export const useSync = () => {
       }
       
       return false
-    } catch (error) {
+    } catch {
       toast.error('Failed to cancel sync operation')
       return false
     }

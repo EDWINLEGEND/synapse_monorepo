@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { API_ENDPOINTS } from '../lib/api'
+import { useProjectStore } from '../store/project-store'
 
 interface Source {
   id: string
@@ -28,6 +29,7 @@ export const useQuery = () => {
   const [isQuerying, setIsQuerying] = useState(false)
   const [lastResponse, setLastResponse] = useState<QueryResponse | null>(null)
   const [error, setError] = useState<QueryError | null>(null)
+  const { activeContextId } = useProjectStore()
 
   const query = async (question: string): Promise<QueryResponse | null> => {
     if (!question.trim()) {
@@ -45,7 +47,8 @@ export const useQuery = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          question: question.trim()
+          question: question.trim(),
+          contextId: activeContextId
         }),
       })
 

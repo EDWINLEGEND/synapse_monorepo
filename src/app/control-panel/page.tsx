@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Upload, Slack, Github, FileText, Loader2, CheckCircle, X, MessageSquare } from 'lucide-react'
+import { Upload, Github, FileText, Loader2, MessageSquare } from 'lucide-react'
 import { useUpload, useSync } from '@/hooks'
 
 export default function ControlPanel() {
