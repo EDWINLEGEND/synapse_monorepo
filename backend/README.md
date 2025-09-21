@@ -24,10 +24,16 @@ FastAPI-based backend for the Synapse unified knowledge engine.
 ## API Endpoints
 
 - **GET /** - Health check
-- **POST /api/upload** - Upload documents (.txt, .md)
-- **POST /api/sync/slack** - Sync Slack channels
-- **POST /api/sync/github** - Sync GitHub repositories
-- **POST /api/query** - Query knowledge base
+- **POST /api/upload** - Upload documents (.txt, .md) with optional contextId
+- **POST /api/sync/slack** - Sync Slack channels with context tagging
+- **POST /api/sync/github** - Sync GitHub repositories with context isolation
+- **POST /api/query** - Query knowledge base with context filtering
+
+### Context-Aware Features
+- **Multi-Project Support**: Complete data isolation between contexts
+- **contextId Parameter**: Optional parameter for all endpoints to specify project context
+- **Query Filtering**: Responses automatically filtered by contextId when provided
+- **Cross-Context Prevention**: No data leakage between different projects
 
 ## API Documentation
 
@@ -52,7 +58,16 @@ backend/
 
 ## Usage Examples
 
-### Upload Document
+### Upload Document with Context
+```bash
+curl -X POST "http://127.0.0.1:8000/api/upload" \
+  -H "accept: application/json" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@document.txt" \
+  -F "contextId=project-alpha"
+```
+
+### Upload Document without Context (Global)
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/upload" \
   -H "accept: application/json" \
@@ -60,7 +75,15 @@ curl -X POST "http://127.0.0.1:8000/api/upload" \
   -F "file=@document.txt"
 ```
 
-### Query Knowledge Base
+### Query Specific Context
+```bash
+curl -X POST "http://127.0.0.1:8000/api/query" \
+  -H "accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is the main topic?", "contextId": "project-alpha"}'
+```
+
+### Query All Contexts (Global)
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/query" \
   -H "accept: application/json" \

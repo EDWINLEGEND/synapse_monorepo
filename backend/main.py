@@ -1,113 +1,99 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, ValidationError, Field
+from typing import List, Dict, Any, Optional
+import tempfile
 import os
+import logging
 import shutil
 from pathlib import Path
-import logging
-from typing import List, Dict, Any
-import uvicorn
-import json
-import openai
-from openai import OpenAI
-import tiktoken
-import numpy as np
-import time
 
-# Initialize FastAPI app
-app = FastAPI(title="Synapse API", description="Unified Knowledge Engine", version="1.0.0")
+# Import settings and vector store
+from settings import settings
+from vector_store_client import VectorStoreClient
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# LlamaIndex imports
+from llama_index.core import VectorStoreIndex, StorageContext, Settings, SimpleDirectoryReader
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.vector_stores import MetadataFilters, MetadataFilter
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI as LlamaOpenAI
+from llama_index.readers.github import GithubRepositoryReader, GithubClient
+from llama_index.readers.slack import SlackReader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize FastAPI app
+app = FastAPI(title="Synapse Backend API", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Custom exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    """Handle Pydantic validation errors with user-friendly messages."""
+    errors = []
+    for error in exc.errors():
+        field = error.get('loc', ['unknown'])[-1]  # Get the field name
+        error_type = error.get('type', 'validation_error')
+        
+        if error_type == 'missing':
+            errors.append(f"{field} is required")
+        elif error_type == 'string_too_short':
+            errors.append(f"{field} cannot be empty")
+        elif error_type == 'value_error':
+            errors.append(f"{field} has an invalid value")
+        else:
+            errors.append(f"{field}: {error.get('msg', 'validation error')}")
+    
+    error_message = "; ".join(errors) if errors else "Invalid request data"
+    logger.error(f"Validation error: {error_message}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": error_message}
+    )
+
 # Create directories
 DATA_DIR = Path("./data")
 STORAGE_DIR = Path("./storage")
+TEMP_UPLOADS_DIR = Path("./temp_uploads")
 DATA_DIR.mkdir(exist_ok=True)
 STORAGE_DIR.mkdir(exist_ok=True)
+TEMP_UPLOADS_DIR.mkdir(exist_ok=True)
 
-# Initialize OpenAI client
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL")
-)
-
-# Simple in-memory document storage
-documents = []
-
-def chunk_text(text: str, max_tokens: int = 500) -> List[str]:
-    """Split text into chunks based on token count."""
-    encoding = tiktoken.encoding_for_model("gpt-4")
-    tokens = encoding.encode(text)
-    
-    chunks = []
-    for i in range(0, len(tokens), max_tokens):
-        chunk_tokens = tokens[i:i + max_tokens]
-        chunk_text = encoding.decode(chunk_tokens)
-        chunks.append(chunk_text)
-    
-    return chunks
-
-def get_embedding(text: str) -> List[float]:
-    """Get embedding for text using OpenAI."""
-    try:
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text
+# Initialize OpenAI client (optional for testing)
+client = None
+try:
+    if settings.OPENAI_API_KEY:
+        client = OpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_BASE_URL
         )
-        return response.data[0].embedding
-    except Exception as e:
-        logger.error(f"Error getting embedding: {e}")
-        return []
+    else:
+        logger.warning("OpenAI API key not found. Some features may not work.")
+except Exception as e:
+    logger.warning(f"Failed to initialize OpenAI client: {e}")
 
-def cosine_similarity(a: List[float], b: List[float]) -> float:
-    """Calculate cosine similarity between two vectors."""
-    if not a or not b:
-        return 0.0
-    
-    a_np = np.array(a)
-    b_np = np.array(b)
-    
-    return np.dot(a_np, b_np) / (np.linalg.norm(a_np) * np.linalg.norm(b_np))
-
-def search_documents(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-    """Search documents using semantic similarity."""
-    if not documents:
-        return []
-    
-    query_embedding = get_embedding(query)
-    if not query_embedding:
-        return []
-    
-    # Calculate similarities
-    results = []
-    for doc in documents:
-        if 'embedding' in doc and doc['embedding']:
-            similarity = cosine_similarity(query_embedding, doc['embedding'])
-            results.append({
-                'content': doc['content'],
-                'source': doc['source'],
-                'similarity': similarity
-            })
-    
-    # Sort by similarity and return top_k
-    results.sort(key=lambda x: x['similarity'], reverse=True)
-    return results[:top_k]
+# Initialize vector store client
+vector_store = VectorStoreClient()
 
 # Pydantic models
 class QueryRequest(BaseModel):
     question: str
-    contextId: str | None = None
+    contextId: str
 
 class QueryResponse(BaseModel):
     answer: str
@@ -119,93 +105,288 @@ class SyncResponse(BaseModel):
 class UploadResponse(BaseModel):
     message: str
 
+class GitHubRepoRequest(BaseModel):
+    owner: str = Field(..., min_length=1, description="Repository owner username or organization")
+    repo: str = Field(..., min_length=1, description="Repository name")
+    branch: str = Field(default="main", min_length=1, description="Branch name")
+    contextId: str = Field(..., min_length=1, description="Context identifier")
+
+class SlackSyncRequest(BaseModel):
+    channel_ids: List[str]
+    contextId: str
+    oldest_ts: str | None = None  # Optional timestamp to limit history
+
+class TransformRequest(BaseModel):
+    question: str
+    contextId: str
+
+class TransformResponse(BaseModel):
+    transformed_question: str
+
 # API Endpoints
 @app.get("/")
 async def root():
     return {"message": "Synapse API is running", "version": "1.0.0"}
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_document(file: UploadFile = File(...), contextId: str = Form(None)):
-    """Upload and process a document."""
+async def upload_document(file: UploadFile = File(...), contextId: str = Form(...)):
+    """Upload and process a document using LlamaIndex."""
+    temp_file_path = None
+    
     try:
-        # Save uploaded file
-        file_path = DATA_DIR / file.filename
-        with open(file_path, "wb") as buffer:
+        logger.info(f"Starting upload process for file: {file.filename}, contextId: {contextId}")
+        
+        # Validate file
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        # Save uploaded file to temporary location
+        temp_file_path = TEMP_UPLOADS_DIR / file.filename
+        logger.info(f"Saving file to temporary location: {temp_file_path}")
+        
+        with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Read and process the file
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        # Also save to data directory for persistence
+        file_path = DATA_DIR / file.filename
+        logger.info(f"Saving file to data directory: {file_path}")
         
-        # Chunk the content
-        chunks = chunk_text(content)
+        with open(file_path, "wb") as buffer:
+            file.file.seek(0)  # Reset file pointer
+            shutil.copyfileobj(file.file, buffer)
         
-        # Process each chunk
-        for i, chunk in enumerate(chunks):
-            embedding = get_embedding(chunk)
-            documents.append({
-                'content': chunk,
-                'source': f"{file.filename} (chunk {i+1})",
-                'embedding': embedding,
-                'contextId': contextId  # Store the contextId with the document
+        # Load the document using LlamaIndex SimpleDirectoryReader
+        logger.info(f"Loading document with SimpleDirectoryReader: {temp_file_path}")
+        documents = SimpleDirectoryReader(input_files=[str(temp_file_path)]).load_data()
+        
+        if not documents:
+            raise HTTPException(status_code=400, detail="Failed to load document content")
+        
+        # Add contextId metadata to all documents
+        logger.info(f"Adding metadata to {len(documents)} document(s)")
+        for doc in documents:
+            doc.metadata.update({
+                "source": "file_upload",
+                "filename": file.filename,
+                "contextId": contextId
             })
         
-        logger.info(f"Processed {len(chunks)} chunks from {file.filename} for context: {contextId}")
+        # Create the index using LlamaIndex - this handles chunking, embedding, and storage automatically
+        logger.info("Creating vector index from documents")
+        index = VectorStoreIndex.from_documents(
+            documents,
+            storage_context=vector_store.get_storage_context()
+        )
+        
+        # Clean up the temporary file
+        if temp_file_path and temp_file_path.exists():
+            temp_file_path.unlink()
+            logger.info(f"Cleaned up temporary file: {temp_file_path}")
+        
+        logger.info(f"Successfully processed {file.filename} using LlamaIndex for context: {contextId}")
         return UploadResponse(message=f"Successfully uploaded and processed {file.filename}")
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors)
+        raise
+    except FileNotFoundError as e:
+        logger.error(f"File not found error during upload: {e}", exc_info=True)
+        if temp_file_path and temp_file_path.exists():
+            temp_file_path.unlink()
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File processing failed: {str(e)}"
+        )
+    except PermissionError as e:
+        logger.error(f"Permission error during file upload: {e}", exc_info=True)
+        if temp_file_path and temp_file_path.exists():
+            temp_file_path.unlink()
+        raise HTTPException(
+            status_code=500, 
+            detail="File system permission error. Please try again or contact support."
+        )
     except Exception as e:
-        logger.error(f"Error uploading document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Clean up temporary file if it exists
+        if temp_file_path and temp_file_path.exists():
+            temp_file_path.unlink()
+            logger.info(f"Cleaned up temporary file after error: {temp_file_path}")
+        
+        # Log the full error with traceback for debugging
+        logger.error(f"Unexpected error during file upload: {e}", exc_info=True)
+        
+        # Check for specific error types and provide user-friendly messages
+        error_message = str(e)
+        if "OpenAI" in error_message or "API" in error_message:
+            raise HTTPException(
+                status_code=503, 
+                detail="External AI service is temporarily unavailable. Please try again later."
+            )
+        elif "ChromaDB" in error_message or "vector" in error_message.lower():
+            raise HTTPException(
+                status_code=503, 
+                detail="Vector database is temporarily unavailable. Please try again later."
+            )
+        elif "embedding" in error_message.lower():
+            raise HTTPException(
+                status_code=503, 
+                detail="Document embedding service is temporarily unavailable. Please try again later."
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to process file upload. Error: {error_message}"
+            )
 
-@app.post("/api/sync/slack", response_model=SyncResponse)
-async def sync_slack(channel_ids: str = Form(...), contextId: str = Form(None)):
-    """Sync data from Slack channels (simplified implementation)."""
+
+
+@app.post("/api/sync/slack")
+async def sync_slack(
+    channel_ids: str = Form(...),
+    contextId: str = Form(None),
+    token: str = Form(None)
+):
+    """Sync data from Slack channels using LlamaIndex SlackReader."""
     try:
-        # This is a simplified implementation
-        # In a real scenario, you would use the Slack API to fetch messages
-        logger.info(f"Slack sync requested for channels: {channel_ids} with context: {contextId}")
+        import asyncio
         
-        # Mock data for demonstration
-        mock_content = f"Mock Slack data from channels: {channel_ids}"
-        chunks = chunk_text(mock_content)
+        # Configure LlamaIndex settings for OpenAI using custom embedding
+        from custom_openai_embedding import CustomOpenAIEmbedding
         
-        for i, chunk in enumerate(chunks):
-            embedding = get_embedding(chunk)
-            documents.append({
-                'content': chunk,
-                'source': f"Slack channels: {channel_ids} (chunk {i+1})",
-                'embedding': embedding,
-                'contextId': contextId  # Store the contextId with the document
-            })
+        Settings.embed_model = CustomOpenAIEmbedding(model="text-embedding-3-small")
+        Settings.llm = LlamaOpenAI(
+            model="gpt-4o-mini", 
+            api_key=settings.OPENAI_API_KEY,
+            api_base=settings.OPENAI_BASE_URL
+        )
         
-        return SyncResponse(message=f"Successfully synced Slack channels: {channel_ids}")
+        # Parse comma-separated channel IDs
+        if not channel_ids or not channel_ids.strip():
+            raise HTTPException(
+                status_code=422, 
+                detail="Please provide at least one Slack channel ID"
+            )
         
+        channel_list = [ch.strip() for ch in channel_ids.split(',') if ch.strip()]
+        
+        if not channel_list:
+            raise HTTPException(
+                status_code=422, 
+                detail="Please provide valid Slack channel IDs"
+            )
+        
+        logger.info(f"Slack sync requested for channels: {channel_list} with context: {contextId}")
+        
+        # Get Slack token from form data or environment
+        slack_token = token or settings.SLACK_BOT_TOKEN
+        if not slack_token:
+            raise HTTPException(status_code=422, detail="Slack token is required for syncing")
+        
+        # Function to run Slack sync in a separate thread
+        def sync_slack_channels():
+            # Initialize Slack reader
+            reader = SlackReader(slack_token=slack_token)
+            
+            # Load data from specified channels
+            load_kwargs = {"channel_ids": channel_list}
+            
+            slack_documents = reader.load_data(**load_kwargs)
+            
+            # Add custom metadata tags for easy filtering later
+            # Convert channel_list to JSON string to avoid ChromaDB metadata type errors
+            channels_json_string = json.dumps(channel_list)
+            
+            for doc in slack_documents:
+                doc.metadata.update({
+                    "source": "slack",
+                    "synced_from_channels": channels_json_string,
+                    "contextId": contextId
+                })
+            
+            return slack_documents
+        
+        # Run the sync operation in a separate thread to avoid event loop conflicts
+        slack_documents = await asyncio.to_thread(sync_slack_channels)
+        
+        # Create ChromaVectorStore from existing collection
+        chroma_vector_store = ChromaVectorStore(chroma_collection=vector_store.collection)
+        
+        # Load the existing index from the vector store
+        index = VectorStoreIndex.from_vector_store(chroma_vector_store)
+        
+        # Insert the new Slack documents into the existing index
+        for doc in slack_documents:
+            index.insert(doc)
+        
+        return {
+            "message": f"Successfully synced {len(slack_documents)} documents from Slack channels: {', '.join(channel_list)}",
+            "document_count": len(slack_documents),
+            "channels": channel_list
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes and messages
+        raise
     except Exception as e:
         logger.error(f"Error syncing Slack: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Slack sync failed: {str(e)}")
 
 @app.post("/api/sync/github", response_model=SyncResponse)
-async def sync_github(owner: str = Form(...), repo: str = Form(...), contextId: str = Form(None)):
-    """Sync data from GitHub repository (simplified implementation)."""
+async def sync_github(repo_details: GitHubRepoRequest):
+    """Sync data from GitHub repository using LlamaIndex GithubRepositoryReader."""
     try:
-        # This is a simplified implementation
-        # In a real scenario, you would use the GitHub API to fetch repository content
-        logger.info(f"GitHub sync requested for {owner}/{repo} with context: {contextId}")
+        import asyncio
         
-        # Mock data for demonstration
-        mock_content = f"Mock GitHub repository data from {owner}/{repo}"
-        chunks = chunk_text(mock_content)
+        logger.info(f"GitHub sync requested for {repo_details.owner}/{repo_details.repo} with context: {repo_details.contextId}")
         
-        for i, chunk in enumerate(chunks):
-            embedding = get_embedding(chunk)
-            documents.append({
-                'content': chunk,
-                'source': f"GitHub: {owner}/{repo} (chunk {i+1})",
-                'embedding': embedding,
-                'contextId': contextId  # Store the contextId with the document
-            })
+        # Get GitHub token from environment
+        github_token = settings.GITHUB_TOKEN
+        if not github_token:
+            raise HTTPException(status_code=400, detail="GitHub token not configured")
         
-        return SyncResponse(message=f"Successfully synced GitHub repository: {owner}/{repo}")
+        # Function to run GitHub sync in a separate thread
+        def sync_github_repo():
+            # Initialize GitHub client and reader
+            github_client = GithubClient(github_token=github_token, verbose=True)
+            reader = GithubRepositoryReader(
+                github_client=github_client,
+                owner=repo_details.owner,
+                repo=repo_details.repo,
+                # Filter to include only relevant file types
+                filter_file_extensions=(['.py', '.ts', '.js', '.md', '.txt', '.json', '.yml', '.yaml'], GithubRepositoryReader.FilterType.INCLUDE),
+                # Set verbose=True to fetch issues and PRs as well
+                verbose=True,
+                concurrent_requests=5,
+            )
+            
+            # Load the data from the repository
+            github_documents = reader.load_data(branch=repo_details.branch)
+            
+            # Add custom metadata tags for easy filtering later
+            for doc in github_documents:
+                doc.metadata.update({
+                    "source": "github",
+                    "owner": repo_details.owner,
+                    "repo": repo_details.repo,
+                    "branch": repo_details.branch,
+                    "contextId": repo_details.contextId
+                })
+            
+            return github_documents
+        
+        # Run the sync operation in a separate thread to avoid event loop conflicts
+        github_documents = await asyncio.to_thread(sync_github_repo)
+        
+        # Create ChromaVectorStore from existing collection
+        chroma_vector_store = ChromaVectorStore(chroma_collection=vector_store.collection)
+        
+        # Load the existing index from the vector store
+        index = VectorStoreIndex.from_vector_store(chroma_vector_store)
+        
+        # Insert the new GitHub documents into the existing index
+        for doc in github_documents:
+            index.insert(doc)
+        
+        return SyncResponse(message=f"Successfully synced {len(github_documents)} documents from {repo_details.owner}/{repo_details.repo}")
         
     except Exception as e:
         logger.error(f"Error syncing GitHub: {e}")
@@ -226,77 +407,134 @@ async def cancel_sync():
 
 @app.post("/api/query", response_model=QueryResponse)
 async def query_knowledge(request: QueryRequest):
-    """Query the knowledge base using RAG."""
+    """Query the knowledge base using RAG with LlamaIndex."""
     try:
-        # Search for relevant documents
-        relevant_docs = search_documents(request.question)
+        # Configure LlamaIndex settings using custom embedding
+        from custom_openai_embedding import CustomOpenAIEmbedding
         
-        if not relevant_docs:
-            return QueryResponse(
-                answer="I don't have enough information to answer your question. Please upload some documents first.",
-                sources=[]
-            )
-        
-        # Prepare context from relevant documents
-        context = "\n\n".join([doc['content'] for doc in relevant_docs[:3]])
-        
-        # Generate response using OpenAI
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that answers questions based on the provided context. If the context doesn't contain enough information to answer the question, say so clearly."
-                },
-                {
-                    "role": "user",
-                    "content": f"Context:\n{context}\n\nQuestion: {request.question}"
-                }
-            ],
-            temperature=0.1
+        Settings.embed_model = CustomOpenAIEmbedding(model="text-embedding-3-small")
+        Settings.llm = LlamaOpenAI(
+            model="gpt-4o-mini", 
+            api_key=settings.OPENAI_API_KEY,
+            api_base=settings.OPENAI_BASE_URL
         )
         
-        answer = response.choices[0].message.content
+        # Create ChromaVectorStore from existing collection
+        chroma_vector_store = ChromaVectorStore(chroma_collection=vector_store.collection)
         
-        # Prepare sources with proper metadata structure
+        # Load the index from the vector store
+        index = VectorStoreIndex.from_vector_store(chroma_vector_store)
+        
+        # Create metadata filter for contextId
+        filters = MetadataFilters(
+            filters=[
+                MetadataFilter(key="contextId", value=request.contextId)
+            ]
+        )
+        
+        # Create query engine with context filter
+        query_engine = index.as_query_engine(filters=filters)
+        
+        # Query the engine
+        response = query_engine.query(request.question)
+        
+        # Process the response
+        answer = response.response
         sources = []
-        for i, doc in enumerate(relevant_docs[:3]):
-            source_text = doc['source']
+        
+        for i, source_node in enumerate(response.source_nodes):
+            # Extract metadata from the source node
+            metadata = source_node.metadata or {}
             
-            # Determine source type and metadata based on source text
-            if "Slack" in source_text:
-                source_type = "slack"
-                metadata = {
-                    "type": "slack",
-                    "channel": source_text.split("channels: ")[1].split(" (")[0] if "channels: " in source_text else "Unknown"
-                }
-            elif "GitHub" in source_text:
-                source_type = "github"
-                repo_info = source_text.split("GitHub: ")[1].split(" (")[0] if "GitHub: " in source_text else "Unknown"
-                metadata = {
-                    "type": "github",
-                    "pr": repo_info
-                }
-            else:
-                source_type = "document"
-                filename = source_text.split(" (chunk")[0] if " (chunk" in source_text else source_text
-                metadata = {
-                    "type": "document",
-                    "filename": filename
-                }
-            
+            # Create source entry
             sources.append({
-                "id": f"source_{i}_{int(time.time() * 1000)}",
-                "content": doc['content'][:200] + "..." if len(doc['content']) > 200 else doc['content'],
+                "id": source_node.node_id,
+                "content": source_node.get_content(),
                 "metadata": metadata
             })
         
-        
         return QueryResponse(answer=answer, sources=sources)
         
+    except ImportError as e:
+        logger.error(f"Import error in query endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Configuration error: Missing required dependencies. Please check server setup."
+        )
     except Exception as e:
-        logger.error(f"Error querying knowledge: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        from openai import APIError, RateLimitError, APIConnectionError
+        
+        # Handle specific OpenAI API errors
+        if isinstance(e, APIError):
+            logger.error(f"OpenAI API error during query: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail=f"AI service is currently unavailable. Please try again later. Error: {str(e)}"
+            )
+        elif isinstance(e, RateLimitError):
+            logger.error(f"OpenAI rate limit exceeded: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=429,
+                detail="AI service rate limit exceeded. Please try again in a few moments."
+            )
+        elif isinstance(e, APIConnectionError):
+            logger.error(f"OpenAI connection error: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to connect to AI service. Please check your internet connection and try again."
+            )
+        
+        # Handle ChromaDB/Vector store errors
+        elif "chroma" in str(e).lower() or "vector" in str(e).lower():
+            logger.error(f"Vector database error during query: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail="Vector database is temporarily unavailable. Please try again later."
+            )
+        
+        # Handle general errors
+        else:
+            logger.error(f"Unexpected error during query: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="An internal server error occurred while processing your query. Please try again later."
+            )
+
+@app.post("/api/query/transform", response_model=TransformResponse)
+async def transform_query(request: TransformRequest):
+    """Transform a user's simple question into a detailed, optimized query for better RAG results."""
+    try:
+        # Define the powerful system prompt for query transformation
+        system_prompt = (
+            "You are an expert at rewriting user questions into detailed, specific search queries "
+            "for a Retrieval-Augmented Generation (RAG) system. The system contains knowledge from "
+            "documents, GitHub issues, pull requests, and Slack conversations. "
+            "Rewrite the following user question to be as specific as possible, including potential "
+            "keywords and concepts that would help find the most relevant information. "
+            "Focus on technical details, code snippets, error messages, feature names, and context "
+            "that would improve search accuracy. Make the query comprehensive but focused."
+        )
+        
+        # Use the existing OpenAI client to call GPT-4o-mini
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.question}
+            ],
+            temperature=0.3,  # Lower temperature for more consistent transformations
+            max_tokens=500    # Reasonable limit for transformed queries
+        )
+        
+        transformed_question = response.choices[0].message.content.strip()
+        
+        logger.info(f"Query transformed: '{request.question}' -> '{transformed_question}'")
+        
+        return TransformResponse(transformed_question=transformed_question)
+        
+    except Exception as e:
+        logger.error(f"Error transforming query: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to transform query: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
