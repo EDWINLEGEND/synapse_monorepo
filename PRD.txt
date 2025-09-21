@@ -58,24 +58,26 @@ CORS: Configured for local development
 Environment: Docker-ready with environment variable configuration
 5. Core Features
 5.1 Document Management
-File Upload: Support for .txt and .md files
-Processing: Automatic text extraction and chunking
-Indexing: Vector embedding generation for semantic search
-Storage: Organized file system with metadata tracking
+File Upload: Support for .txt and .md files with context isolation
+Processing: Automatic text extraction and chunking with contextId tagging
+Indexing: Vector embedding generation for semantic search with metadata filtering
+Storage: Organized file system with context-aware metadata tracking
+Context Isolation: Complete data separation between different projects/contexts
 5.2 Intelligent Querying
-Natural Language Interface: Chat-based query system
-RAG Implementation: Context-aware responses using retrieved documents
-Source Citations: Automatic source attribution with metadata
-Semantic Search: Vector-based similarity matching (top-k retrieval)
+Natural Language Interface: Chat-based query system with context filtering
+RAG Implementation: Context-aware responses using retrieved documents from specific contexts
+Source Citations: Automatic source attribution with context metadata
+Semantic Search: Vector-based similarity matching with context filtering (top-k retrieval)
+Multi-Project Support: Query isolation ensuring no cross-context data leakage
 5.3 Integration Capabilities
 Slack Integration:
-Channel message synchronization
+Channel message synchronization with context tagging
 Token-based authentication
-Message history import
+Message history import with contextId assignment
 GitHub Integration:
-Repository content sync
-Pull request and issue import
-Token-based API access
+Repository content sync with context isolation
+Pull request and issue import with project-specific tagging
+Token-based API access with context-aware storage
 5.4 User Interface
 Chat Interface: Modern conversational UI with message bubbles
 Control Panel: Administrative interface for data management
@@ -88,12 +90,14 @@ PlainText
 
 
 
-GET  /                    # Health checkPOST /api/upload          # Document upload (.txt, .md)POST /api/query           # Knowledge base queryingPOST /api/sync/slack      # Slack channel synchronizationPOST /api/sync/github     # GitHub repository synchronization
+GET  /                    # Health checkPOST /api/upload          # Document upload (.txt, .md) with contextId supportPOST /api/query           # Knowledge base querying with context filteringPOST /api/sync/slack      # Slack channel synchronization with context taggingPOST /api/sync/github     # GitHub repository synchronization with context isolation
 Request/Response Models
-QueryRequest: { question: string }
+QueryRequest: { question: string, contextId?: string }
 QueryResponse: { answer: string, sources: Source[] }
-Source: { id: string, content: string, metadata: object }
-Upload: Multipart form data with file attachment
+UploadRequest: { file: File, contextId?: string }
+Source: { id: string, content: string, metadata: { contextId: string, ...object } }
+Upload: Multipart form data with file attachment and optional contextId
+Context Isolation: All endpoints support contextId parameter for multi-project data separation
 7. User Experience Flow
 7.1 Onboarding
 1.
@@ -104,22 +108,26 @@ Navigation to chat interface or control panel
 Optional integration setup (Slack/GitHub tokens)
 7.2 Content Ingestion
 1.
-Document Upload: Drag-and-drop or file selection
+Document Upload: Drag-and-drop or file selection with optional contextId specification
 2.
-Slack Sync: Channel ID input with optional token
+Slack Sync: Channel ID input with optional token and contextId assignment
 3.
-GitHub Sync: Repository details with authentication
+GitHub Sync: Repository details with authentication and contextId tagging
 4.
-Processing Feedback: Progress indicators and success notifications
+Processing Feedback: Progress indicators and success notifications with context confirmation
+5.
+Context Management: Visual indicators showing which context data belongs to
 7.3 Knowledge Querying
 1.
-Question Input: Natural language query in chat interface
+Question Input: Natural language query in chat interface with optional context selection
 2.
-Processing: Real-time "thinking" indicator
+Processing: Real-time "thinking" indicator with context-aware filtering
 3.
-Response Display: AI-generated answer with source cards
+Response Display: AI-generated answer with source cards showing context metadata
 4.
-Source Exploration: Expandable source content with metadata
+Source Exploration: Expandable source content with contextId and metadata display
+5.
+Context Filtering: Ability to query specific contexts or across all available contexts
 8. Technical Requirements
 8.1 Performance
 Response Time: < 3 seconds for typical queries

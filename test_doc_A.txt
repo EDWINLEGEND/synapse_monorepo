@@ -1,0 +1,15 @@
+Test Document for Project Alpha
+
+This is a test document created for the smoke test of the Synapse RAG system.
+
+The secret code for Project Alpha is 'Blue Parrot'.
+
+This document contains unique information that will be used to verify the end-to-end functionality of the knowledge base system, including document ingestion, embedding generation, and query retrieval.
+
+Additional test content:
+- Project Alpha was initiated on January 15, 2024
+- The project lead is Dr. Sarah Chen
+- The main objective is to develop a unified knowledge engine
+- The expected completion date is March 30, 2024
+
+This content should be retrievable when querying the system about Project Alpha details.

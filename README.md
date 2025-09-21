@@ -102,26 +102,35 @@ The frontend will be available at: `http://localhost:3000`
 - Upload documents and query them using natural language
 - Semantic search with OpenAI embeddings
 - RAG-powered responses with source citations
+- **Context-aware isolation**: Complete data separation between projects
+- **Multi-project support**: Query specific contexts or across all projects
 
 ### 🔗 **Data Integration**
-- **Slack**: Sync messages from specified channels
-- **GitHub**: Import repository content and documentation
-- **File Upload**: Support for text documents
+- **Slack**: Sync messages from specified channels with context tagging
+- **GitHub**: Import repository content and documentation with project isolation
+- **File Upload**: Support for text documents with contextId assignment
 
 ### 🎨 **Modern UI**
 - Built with Next.js 15 and React 19
 - Tailwind CSS for styling
 - Dark/Light theme support
 - Responsive design
+- **Context management**: Visual indicators for project separation
 
 ## API Endpoints
 
 ### Core Endpoints
 - `GET /` - Health check
-- `POST /api/upload` - Upload and process documents
-- `POST /api/query` - Query the knowledge base
-- `POST /api/sync/slack` - Sync Slack channels
-- `POST /api/sync/github` - Sync GitHub repositories
+- `POST /api/upload` - Upload and process documents (supports contextId parameter)
+- `POST /api/query` - Query the knowledge base (supports contextId filtering)
+- `POST /api/sync/slack` - Sync Slack channels (with context tagging)
+- `POST /api/sync/github` - Sync GitHub repositories (with context isolation)
+
+### Context-Aware Features
+- **contextId Parameter**: All endpoints support optional contextId for project isolation
+- **Data Separation**: Complete isolation between different projects/contexts
+- **Query Filtering**: Responses limited to specified context when contextId provided
+- **Cross-Context Prevention**: No data leakage between different contexts
 
 ### Documentation
 Visit `http://localhost:8000/docs` for interactive API documentation.

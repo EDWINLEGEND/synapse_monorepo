@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TimelineItem } from '@/components/timeline-item'
 import { ActivityDetail } from '@/components/activity-detail'
 import { useProjectStore } from '@/store/project-store'
+import { cn } from '@/lib/utils'
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -382,7 +383,11 @@ export default function Dashboard() {
 
         {/* Activity List */}
         <div className="flex-1 p-4 overflow-y-auto">
-          <div className={`space-y-3 ${
+          <div className={`${
+            sidebarCollapsed && !mobileMenuOpen 
+              ? 'space-y-2 flex flex-col items-center' 
+              : 'space-y-3'
+          } ${
             isMobile && !mobileMenuOpen ? 'hidden' : ''
           }`}>
             {filteredActivities.length > 0 ? (
@@ -395,7 +400,7 @@ export default function Dashboard() {
                   timestamp={activity.timestamp}
                   onClick={() => handleActivitySelect(activity.id)}
                   isSelected={selectedActivityId === activity.id}
-                  className={sidebarCollapsed && !mobileMenuOpen ? 'justify-center' : ''}
+                  isCollapsed={sidebarCollapsed && !mobileMenuOpen}
                 />
               ))
             ) : (
@@ -423,21 +428,23 @@ export default function Dashboard() {
 
         {/* Toggle Button - Hidden on mobile */}
         {!isMobile && (
-          <div className="pt-4 border-t flex-shrink-0">
+          <div className="p-4 border-t flex-shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={toggleSidebar}
-                  className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                  className={cn(
+                    "transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    sidebarCollapsed 
+                      ? "w-full justify-center p-2" 
+                      : "w-full justify-start gap-2"
+                  )}
                   aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >
                   {sidebarCollapsed ? (
-                    <>
-                      <ChevronRight className="h-4 w-4" />
-                      <span>Expand</span>
-                    </>
+                    <ChevronRight className="h-4 w-4" />
                   ) : (
                     <>
                       <ChevronLeft className="h-4 w-4" />

@@ -35,6 +35,13 @@ export const useSync = () => {
       return { success: false, message: 'No channel IDs provided' }
     }
 
+    // Validate channel IDs format
+    const invalidChannels = params.channelIds.filter(id => !id.trim())
+    if (invalidChannels.length > 0) {
+      toast.error('Please provide valid channel IDs (no empty values)')
+      return { success: false, message: 'Invalid channel IDs provided' }
+    }
+
     setIsSyncing(true)
     setSyncType('slack')
     setSyncProgress(0)
@@ -53,8 +60,22 @@ export const useSync = () => {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Slack sync failed: ${response.statusText}`)
+        let errorMessage = `Slack sync failed: ${response.statusText}`
+        
+        try {
+          const errorData = await response.json()
+          if (errorData.detail) {
+            errorMessage = errorData.detail
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (jsonError) {
+          // If JSON parsing fails, use the default error message
+          console.warn('Failed to parse error response:', jsonError)
+        }
+        
+        toast.error(errorMessage)
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -94,28 +115,42 @@ export const useSync = () => {
     setSyncProgress(0)
 
     try {
-      const formData = new FormData()
-      formData.append('owner', params.owner)
-      formData.append('repo', params.repo)
-      formData.append('contextId', activeContextId)
-      if (params.token) {
-        formData.append('token', params.token)
+      const payload = {
+        owner: params.owner,
+        repo: params.repo,
+        branch: 'main', // Default branch
+        contextId: activeContextId
       }
 
       const response = await fetch(API_ENDPOINTS.SYNC_GITHUB, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `GitHub sync failed: ${response.statusText}`)
+        let errorMessage = `GitHub sync failed: ${response.statusText}`
+        
+        try {
+          const errorData = await response.json()
+          if (errorData.detail) {
+            errorMessage = errorData.detail
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (jsonError) {
+          // If JSON parsing fails, use the default error message
+        }
+        
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
       
       setSyncProgress(100)
-      toast.success(`Successfully synced ${data.syncedCount || 0} GitHub items`)
+      toast.success(`Successfully synced GitHub repository: ${params.owner}/${params.repo}`)
       
       return {
         success: true,
