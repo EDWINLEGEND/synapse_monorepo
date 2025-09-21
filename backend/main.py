@@ -8,6 +8,8 @@ import tempfile
 import os
 import logging
 import shutil
+import json
+import uvicorn
 from pathlib import Path
 
 # Import settings and vector store
@@ -283,29 +285,75 @@ async def sync_slack(
         
         # Function to run Slack sync in a separate thread
         def sync_slack_channels():
-            # Initialize Slack reader
-            reader = SlackReader(slack_token=slack_token)
-            
-            # Load data from specified channels
-            load_kwargs = {"channel_ids": channel_list}
-            
-            slack_documents = reader.load_data(**load_kwargs)
-            
-            # Add custom metadata tags for easy filtering later
-            # Convert channel_list to JSON string to avoid ChromaDB metadata type errors
-            channels_json_string = json.dumps(channel_list)
-            
-            for doc in slack_documents:
-                doc.metadata.update({
-                    "source": "slack",
-                    "synced_from_channels": channels_json_string,
-                    "contextId": contextId
-                })
-            
-            return slack_documents
+            try:
+                logger.info(f"Starting Slack sync for channels: {channel_list}")
+                
+                # Initialize Slack reader
+                reader = SlackReader(slack_token=slack_token)
+                logger.info("SlackReader initialized successfully")
+                
+                # Load data from specified channels
+                load_kwargs = {"channel_ids": channel_list}
+                logger.info(f"Calling SlackReader.load_data with parameters: {load_kwargs}")
+                
+                # This is the critical call where silent failures often occur
+                slack_documents = reader.load_data(**load_kwargs)
+                
+                # Add this new log line to track what SlackReader actually returned
+                logger.info(f"SlackReader returned {len(slack_documents)} documents.")
+                
+                # Check for empty results and provide detailed warning
+                if not slack_documents:
+                    logger.warning("No documents were returned from SlackReader. This could indicate:")
+                    logger.warning("1. Bot is not a member of the specified channel(s)")
+                    logger.warning("2. Missing required Slack scopes (channels:history, groups:history, etc.)")
+                    logger.warning("3. Channel ID(s) are invalid or channel is empty")
+                    logger.warning("4. Bot token lacks proper permissions")
+                    return []
+                
+                # Log details about the documents retrieved
+                logger.info(f"Successfully retrieved {len(slack_documents)} documents from Slack")
+                for i, doc in enumerate(slack_documents[:3]):  # Log first 3 documents for debugging
+                    logger.info(f"Document {i+1}: {len(doc.text)} characters, metadata keys: {list(doc.metadata.keys())}")
+                
+                # Add custom metadata tags for easy filtering later
+                # Convert channel_list to JSON string to avoid ChromaDB metadata type errors
+                channels_json_string = json.dumps(channel_list)
+                
+                for doc in slack_documents:
+                    doc.metadata.update({
+                        "source": "slack",
+                        "synced_from_channels": channels_json_string,
+                        "contextId": contextId
+                    })
+                
+                logger.info(f"Added metadata to {len(slack_documents)} documents")
+                return slack_documents
+                
+            except Exception as e:
+                logger.error(f"Error in sync_slack_channels: {e}", exc_info=True)
+                raise
         
         # Run the sync operation in a separate thread to avoid event loop conflicts
         slack_documents = await asyncio.to_thread(sync_slack_channels)
+        
+        # Check if we got any documents and provide appropriate response
+        if not slack_documents:
+            logger.warning("Slack sync completed but no documents were retrieved")
+            return {
+                "status": "warning",
+                "message": "Sync completed, but 0 messages were found. Ensure the bot is in the channel and the channel is not empty.",
+                "syncedCount": 0,
+                "document_count": 0,
+                "channels": channel_list,
+                "suggestions": [
+                    "Verify bot is a member of the channel (use /who command in Slack)",
+                    "Check bot token scopes include channels:history, groups:history, etc.",
+                    "Confirm channel IDs are correct and channels contain messages"
+                ]
+            }
+        
+        logger.info(f"Processing {len(slack_documents)} documents for vector store insertion")
         
         # Create ChromaVectorStore from existing collection
         chroma_vector_store = ChromaVectorStore(chroma_collection=vector_store.collection)
@@ -317,8 +365,12 @@ async def sync_slack(
         for doc in slack_documents:
             index.insert(doc)
         
+        logger.info(f"Successfully inserted {len(slack_documents)} documents into vector store")
+        
         return {
+            "status": "success",
             "message": f"Successfully synced {len(slack_documents)} documents from Slack channels: {', '.join(channel_list)}",
+            "syncedCount": len(slack_documents),
             "document_count": len(slack_documents),
             "channels": channel_list
         }

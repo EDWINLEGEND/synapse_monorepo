@@ -140,7 +140,7 @@ export const useSync = () => {
           } else if (errorData.message) {
             errorMessage = errorData.message
           }
-        } catch (jsonError) {
+        } catch {
           // If JSON parsing fails, use the default error message
         }
         

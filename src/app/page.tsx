@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TimelineItem } from '@/components/timeline-item'
 import { ActivityDetail } from '@/components/activity-detail'
+import EventTreeView from '@/components/event-tree-view'
 import { useProjectStore } from '@/store/project-store'
 import { cn } from '@/lib/utils'
 import { 
@@ -16,7 +17,9 @@ import {
   Menu,
   X,
   Filter,
-  FolderOpen
+  FolderOpen,
+  List,
+  GitBranch
 } from 'lucide-react'
 
 // Mock activity data with expanded fields for timeline
@@ -235,9 +238,10 @@ export default function Dashboard() {
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'timeline' | 'tree'>('timeline')
   
   // Project store
-  const { contexts, activeContextId, setActiveContextId } = useProjectStore()
+  const { contexts, activeContextId, setActiveContextId, selectedActivity, setActivityDetailOpen, setSelectedActivity } = useProjectStore()
 
   // Check if screen is mobile size
   useEffect(() => {
@@ -264,12 +268,25 @@ export default function Dashboard() {
   // Handle activity selection
   const handleActivitySelect = (activityId: string) => {
     setSelectedActivityId(activityId)
+    const activity = mockActivities.find(activity => activity.id === activityId)
+    if (activity) {
+      // Convert mock activity to store activity format
+      const storeActivity = {
+        id: activity.id,
+        type: activity.type,
+        icon: activity.icon,
+        title: activity.title,
+        timestamp: activity.timestamp,
+        description: activity.description,
+        author: activity.author,
+        details: activity.details,
+        message: activity.message,
+        reviews: activity.reviews
+      }
+      setSelectedActivity(storeActivity)
+      setActivityDetailOpen(true)
+    }
   }
-
-  // Get selected activity data
-  const selectedActivity = selectedActivityId 
-    ? mockActivities.find(activity => activity.id === selectedActivityId)
-    : null
 
   // Filter activities based on activeFilter
   const filteredActivities = mockActivities.filter(activity => {
@@ -346,6 +363,31 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold">Activity Timeline</h2>
                 <p className="text-sm text-muted-foreground mb-4">Recent actions</p>
                 
+                {/* View Mode Toggle */}
+                <div className="space-y-2 mb-4">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</p>
+                  <div className="flex gap-1 p-1 bg-muted rounded-md">
+                    <Button
+                      variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('timeline')}
+                      className="flex-1 h-7 text-xs"
+                    >
+                      <List className="h-3 w-3 mr-1" />
+                      Timeline
+                    </Button>
+                    <Button
+                      variant={viewMode === 'tree' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('tree')}
+                      className="flex-1 h-7 text-xs"
+                    >
+                      <GitBranch className="h-3 w-3 mr-1" />
+                      Tree
+                    </Button>
+                  </div>
+                </div>
+                
                 {/* Filter Controls */}
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filter</p>
@@ -390,38 +432,30 @@ export default function Dashboard() {
           } ${
             isMobile && !mobileMenuOpen ? 'hidden' : ''
           }`}>
-            {filteredActivities.length > 0 ? (
-              filteredActivities.map((activity) => (
-                <TimelineItem
-                  key={activity.id}
-                  icon={activity.icon}
-                  title={activity.title}
-                  description={activity.description}
-                  timestamp={activity.timestamp}
-                  onClick={() => handleActivitySelect(activity.id)}
-                  isSelected={selectedActivityId === activity.id}
-                  isCollapsed={sidebarCollapsed && !mobileMenuOpen}
-                />
-              ))
-            ) : (
-              (!sidebarCollapsed || mobileMenuOpen) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col items-center justify-center py-12 text-center"
-                >
-                  <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium text-muted-foreground mb-2">
-                    No activities to show
-                  </h3>
-                  <p className="text-sm text-muted-foreground max-w-xs">
-                    {activeFilter === 'All' 
-                      ? "Your activity timeline will appear here as you use the application."
-                      : `No ${activeFilter.toLowerCase()} activities found. Try selecting a different filter.`
-                    }
-                  </p>
-                </motion.div>
+            {viewMode === 'timeline' ? (
+              filteredActivities.length > 0 ? (
+                filteredActivities.map((activity) => (
+                  <TimelineItem
+                    key={activity.id}
+                    icon={activity.icon}
+                    title={activity.title}
+                    description={activity.description}
+                    timestamp={activity.timestamp}
+                    onClick={() => handleActivitySelect(activity.id)}
+                    isSelected={selectedActivityId === activity.id}
+                    isCollapsed={sidebarCollapsed && !mobileMenuOpen}
+                  />
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground text-sm py-8">
+                  No activities found
+                </div>
               )
+            ) : (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                <GitBranch className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Tree view available in main content area</p>
+              </div>
             )}
           </div>
         </div>
@@ -491,6 +525,10 @@ export default function Dashboard() {
         <main className="flex-1 p-4">
           {selectedActivity ? (
             <ActivityDetail activity={selectedActivity} />
+          ) : viewMode === 'tree' ? (
+            <div className="h-full">
+              <EventTreeView />
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="max-w-sm mx-auto">
@@ -499,7 +537,7 @@ export default function Dashboard() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Welcome to Synapse</h3>
                 <p className="text-sm text-muted-foreground">
-                  Select an activity from the timeline to see its details.
+                  Select an activity from the timeline to see its details, or switch to tree view to explore the event graph.
                 </p>
               </div>
             </div>
